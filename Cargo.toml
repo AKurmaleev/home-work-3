@@ -1,0 +1,15 @@
+[package]
+name = "home-work-3"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Six-bit MMU emulator for the page tables homework"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+todo = "deny"
