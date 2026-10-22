@@ -1,19 +1,19 @@
-# Домашняя работа 3 — Page Tables
+# Homework 3 — Page Tables
 
-Эмулятор MMU для учебной 6-битной архитектуры на Rust. Реализован перевод виртуального адреса в физический с проверкой наличия страницы и прав доступа по материалам лекций 5–6.
+An MMU emulator in Rust for an educational 6-bit architecture. Implements virtual-to-physical address translation with page presence and access permission checks based on lectures 5–6.
 
-## Запуск и проверка
+## Running and verification
 
-Нужен стабильный Rust с поддержкой edition 2024 (MSRV: 1.85). Внешних зависимостей нет.
+Requires stable Rust with edition 2024 support (MSRV: 1.85). No external dependencies.
 
 ```sh
 cargo test
 cargo run
 ```
 
-`cargo run` сравнивает успешные трансляции и ошибки в Ring3 и Ring0; все четыре вида ошибок показаны в Ring3, а Ring0 обходит проверку `User`. Это обычная пользовательская программа: прав администратора, Linux, изменения page tables хоста или специального CPU не требуется.
+`cargo run` compares successful translations and errors in Ring3 and Ring0; all four error types are demonstrated in Ring3, while Ring0 bypasses the `User` check. This is an ordinary user-space program: no administrator privileges, Linux, changes to the host's page tables, or special CPU are required.
 
-Полная проверка:
+Full verification:
 
 ```sh
 cargo fmt --all --check
@@ -23,29 +23,29 @@ cargo test --frozen
 cargo test --frozen --release
 ```
 
-## Навигация для проверяющего
+## Reviewer navigation
 
-| Файл | Содержание |
+| File | Contents |
 |---|---|
-| [`src/lib.rs`](src/lib.rs) | `ToyMMU::translate`, типы ошибок и уровней привилегий, пример API |
-| [`src/main.rs`](src/main.rs) | Демонстрация на таблице из шаблона преподавателя |
-| [`tests/instructor.rs`](tests/instructor.rs) | 6 тестов из исходного шаблона |
-| [`tests/exhaustive.rs`](tests/exhaustive.rs) | 8 дополнительных тестов: полный перебор, границы, права, независимые контексты |
-| [`REPORT.md`](REPORT.md) | Алгоритм, пример трансляции, связь с лекциями и результаты проверки |
-| [`Cargo.toml`](Cargo.toml) | Версия Rust, параметры пакета и запрет `unsafe` |
+| [`src/lib.rs`](src/lib.rs) | `ToyMMU::translate`, error and privilege level types, API example |
+| [`src/main.rs`](src/main.rs) | Demonstration using the table from the instructor's template |
+| [`tests/instructor.rs`](tests/instructor.rs) | 6 tests from the original template |
+| [`tests/exhaustive.rs`](tests/exhaustive.rs) | 8 additional tests: exhaustive enumeration, boundaries, permissions, independent contexts |
+| [`REPORT.md`](REPORT.md) | Algorithm, translation example, connections to the lectures, and verification results |
+| [`Cargo.toml`](Cargo.toml) | Rust version, package settings, and prohibition of `unsafe` |
 
-## Модель
+## Model
 
-- Адреса: `0..=63`; страница: 8 байт; таблица: 8 записей.
-- Виртуальный адрес: `VPN[5:3] | OFFSET[2:0]`.
-- Запись PTE: `--PPPUWP`, где `PPP` — номер физической страницы, `U` — User, `W` — Writable, `P` — Present.
-- Биты PTE 6–7 игнорируются; виртуальный адрес за пределами 6 бит отклоняется, а не обрезается.
-- Ring3 требует `U=1`. Ring0 обходит только эту проверку; `P` и `W` действуют в обоих режимах.
+- Addresses: `0..=63`; page: 8 bytes; table: 8 entries.
+- Virtual address: `VPN[5:3] | OFFSET[2:0]`.
+- PTE entry: `--PPPUWP`, where `PPP` is the physical page number, `U` is User, `W` is Writable, and `P` is Present.
+- PTE bits 6–7 are ignored; a virtual address exceeding 6 bits is rejected rather than truncated.
+- Ring3 requires `U=1`. Ring0 bypasses only this check; `P` and `W` apply in both modes.
 
-Пример из шаблона: `VA=3`, `PTE=23` → физическая страница 2, смещение 3 → `PA=19`.
+Example from the template: `VA=3`, `PTE=23` → physical page 2, offset 3 → `PA=19`.
 
-Сохранены имена и сигнатуры API [шаблона преподавателя](https://gist.github.com/kulinsky/39cee1674cbdf54432734bfe78e9ce0d). Логика вынесена в библиотеку, тесты — в отдельные файлы.
+The API names and signatures from the [instructor's template](https://gist.github.com/kulinsky/39cee1674cbdf54432734bfe78e9ce0d) are preserved. The logic is in a library, with tests in separate files.
 
-## Результат
+## Results
 
-В debug и release проходят **14 интеграционных тестов и 1 doctest**. Полные переборы покрывают 65 536 допустимых комбинаций и 196 608 комбинаций с недопустимыми адресами. Время трансляции и дополнительная память — `Θ(1)` для заданной модели. Бенчмарки и аппаратные оптимизации не добавлялись: задача проверяет корректность трансляции и защиты доступа.
+**14 integration tests and 1 doctest** pass in both debug and release. Exhaustive enumeration covers 65 536 valid combinations and 196 608 combinations with invalid addresses. Translation time and auxiliary space are `Θ(1)` for this model. No benchmarks or hardware optimizations were added: the assignment verifies the correctness of translation and access protection.

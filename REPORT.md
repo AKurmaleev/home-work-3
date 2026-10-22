@@ -1,40 +1,40 @@
-# Отчёт: 6-битный MMU
+# Report: 6-bit MMU
 
-## Что реализовано
+## Implementation
 
-По условию `HW_Page_Tables.pdf` реализован `ToyMMU::translate(&self, va: u8, is_write: bool) -> Result<u8, MemoryError>`. Сохранены API и шесть проверок из [шаблона преподавателя](https://gist.github.com/kulinsky/39cee1674cbdf54432734bfe78e9ce0d). Код находится в [`src/lib.rs`](src/lib.rs); запуск примеров — `cargo run`.
+As specified in `HW_Page_Tables.pdf`, `ToyMMU::translate(&self, va: u8, is_write: bool) -> Result<u8, MemoryError>` is implemented. The API and six checks from the [instructor's template](https://gist.github.com/kulinsky/39cee1674cbdf54432734bfe78e9ce0d) are preserved. The code is in [`src/lib.rs`](src/lib.rs); run the examples with `cargo run`.
 
-Таблица `[u8; 8]` и режим доступа принадлежат экземпляру MMU. Метод не изменяет состояние, не выделяет память и не разыменовывает адреса хоста. Возвращаемый `u8` — адрес в учебной модели, а не указатель Rust.
+The MMU instance owns the `[u8; 8]` table and access mode. The method does not modify state, allocate memory, or dereference host addresses. The returned `u8` is an address in the educational model, not a Rust pointer.
 
-## Алгоритм
+## Algorithm
 
-1. Проверить `va <= 63` до обращения к таблице. Иначе вернуть `InvalidAddress`.
-2. Получить `VPN = va >> 3`, `offset = va & 0b111`.
-3. Прочитать `entry = page_table[VPN]`. После проверки адреса индекс гарантированно находится в `0..8`.
-4. Если `P=0`, вернуть `PageNotPresent`.
-5. Если режим Ring3 и `U=0`, вернуть `PrivilegeViolation`.
-6. Если запрошена запись и `W=0`, вернуть `WriteProtected`.
-7. Извлечь `PPN = (entry & 0b0011_1000) >> 3`, исключая флаги и неиспользуемые биты.
-8. Вернуть `PA = (PPN << 3) | offset`.
+1. Check `va <= 63` before accessing the table. Otherwise, return `InvalidAddress`.
+2. Compute `VPN = va >> 3`, `offset = va & 0b111`.
+3. Read `entry = page_table[VPN]`. After address validation, the index is guaranteed to be in `0..8`.
+4. If `P=0`, return `PageNotPresent`.
+5. If the mode is Ring3 and `U=0`, return `PrivilegeViolation`.
+6. If a write is requested and `W=0`, return `WriteProtected`.
+7. Extract `PPN = (entry & 0b0011_1000) >> 3`, excluding flags and unused bits.
+8. Return `PA = (PPN << 3) | offset`.
 
-У результата не более шести значащих бит: `PPN <= 7`, `offset <= 7`. Сдвиги фиксированы, переполнений нет. Для фиксированной таблицы время и дополнительная память трансляции — `Θ(1)`; полезные данные таблицы занимают 8 байт, без утверждений о полном layout структуры Rust.
+The result has at most six significant bits: `PPN <= 7`, `offset <= 7`. Shifts are fixed, with no overflow. For the fixed table, translation time and auxiliary space are `Θ(1)`; the table's payload occupies 8 bytes, with no claim about the full layout of the Rust struct.
 
-### Права и приоритет ошибок
+### Permissions and error precedence
 
-| Условие | Чтение | Запись |
+| Condition | Read | Write |
 |---|---|---|
-| `P=0`, любой режим | `PageNotPresent` | `PageNotPresent` |
+| `P=0`, any mode | `PageNotPresent` | `PageNotPresent` |
 | `P=1`, Ring3, `U=0` | `PrivilegeViolation` | `PrivilegeViolation` |
-| `P=1`, допустимый режим, `W=0` | Разрешено | `WriteProtected` |
-| `P=1`, допустимый режим, `W=1` | Разрешено | Разрешено |
+| `P=1`, permitted mode, `W=0` | Allowed | `WriteProtected` |
+| `P=1`, permitted mode, `W=1` | Allowed | Allowed |
 
-Условие не задаёт приоритет одновременных нарушений `U` и `W`. В реализации он явно определён: `InvalidAddress → PageNotPresent → PrivilegeViolation → WriteProtected`. Ring0 не обходит отсутствие страницы или запрет записи. Название исходного теста `test_kernel_can_access_everything` означает в его конкретном примере доступ к supervisor-странице, а не снятие всех проверок.
+The assignment does not specify precedence for simultaneous `U` and `W` violations. The implementation defines it explicitly: `InvalidAddress → PageNotPresent → PrivilegeViolation → WriteProtected`. Ring0 does not bypass page absence or write protection. In its specific example, the original test name `test_kernel_can_access_everything` means access to a supervisor page, not removal of all checks.
 
-Биты PTE 6–7 не используются согласно условию и игнорируются при извлечении PPN. Это не разрешение игнорировать reserved bits произвольной реальной архитектуры.
+PTE bits 6–7 are unused according to the assignment and are ignored when extracting the PPN. This does not permit ignoring reserved bits in arbitrary real architectures.
 
-## Пример по шагам
+## Step-by-step example
 
-В таблице из шаблона `page_table[0] = 23 = 0b0001_0111`:
+In the template's table, `page_table[0] = 23 = 0b0001_0111`:
 
 ```text
 VA = 3 = 0b000_011
@@ -43,41 +43,41 @@ PTE = 23: PPN = 2, U = 1, W = 1, P = 1
 PA = (2 << 3) | 3 = 19 = 0b010_011
 ```
 
-Смещение не меняется. Для `VA=11` используется уже `page_table[1]=43`: Ring3 получает `PrivilegeViolation`, а Ring0 — `PA=43`. Чтение `VA=16` разрешено, запись запрещена. Для `VA=24` страница отсутствует; `VA=64` недопустим ещё до поиска PTE.
+The offset is unchanged. `VA=11` uses `page_table[1]=43` instead: Ring3 gets `PrivilegeViolation`, while Ring0 gets `PA=43`. Reading `VA=16` is allowed; writing is prohibited. For `VA=24`, the page is absent; `VA=64` is invalid even before the PTE lookup.
 
-## Связь с лекциями 5–6
+## Connections to lectures 5–6
 
-- **Привилегии и изоляция.** Режим и `User` проверяются отдельно от самого преобразования адреса. Разные экземпляры MMU могут переводить один VA в разные PA; тесты проверяют отсутствие общего скрытого состояния.
-- **Page tables.** Запись содержит и номер страницы, и права. Просто заменить старшие биты адреса недостаточно: сначала нужно проверить доступ.
-- **Страничная организация.** Замена VPN на PPN сохраняет offset. Несколько виртуальных страниц могут указывать на одну физическую, сохраняя разные права в своих PTE.
-- **Fault как результат доступа.** Ошибка не заменяется нулём и не вызывает `panic!`; вызывающая сторона получает конкретный `MemoryError`.
+- **Privileges and isolation.** The mode and `User` are checked separately from address conversion itself. Different MMU instances can translate the same VA to different PAs; tests verify that there is no shared hidden state.
+- **Page tables.** An entry contains both a page number and permissions. Simply replacing the high address bits is not enough: access must be checked first.
+- **Paging.** Replacing the VPN with the PPN preserves the offset. Multiple virtual pages can refer to the same physical page while retaining different permissions in their PTEs.
+- **Faults as access results.** An error is neither replaced with zero nor turned into `panic!`; the caller receives a specific `MemoryError`.
 
-Модель намеренно не реализует планировщик, переход CPU в Ring0, многоуровневый page walk, TLB, swap, copy-on-write, demand paging или обработчик аппаратного page fault. В реальной ОС page fault может быть успешно обработан, а не обязательно завершать процесс. Конкретные размеры страниц, число уровней и задержки TLB зависят от платформы. `malloc` — функция аллокатора, а не отдельный системный вызов; её вызов не обязательно приводит к обращению к ядру.
+The model deliberately does not implement a scheduler, a CPU transition to Ring0, a multilevel page walk, a TLB, swap, copy-on-write, demand paging, or a hardware page fault handler. In a real OS, a page fault can be handled successfully rather than necessarily terminating the process. Specific page sizes, numbers of levels, and TLB latencies depend on the platform. `malloc` is an allocator function, not a separate system call; calling it does not necessarily enter the kernel.
 
-Уточнения сверены с [документацией Linux по page tables](https://docs.kernel.org/mm/page_tables.html), [пятиуровневому paging x86](https://docs.kernel.org/arch/x86/x86_64/5level-paging.html) и [`malloc(3)`](https://man7.org/linux/man-pages/man3/malloc.3.html).
+These clarifications were checked against the Linux documentation on [page tables](https://docs.kernel.org/mm/page_tables.html), [five-level x86 paging](https://docs.kernel.org/arch/x86/x86_64/5level-paging.html), and [`malloc(3)`](https://man7.org/linux/man-pages/man3/malloc.3.html).
 
-## Проверка
+## Verification
 
-На нативной Windows, Rust 1.95.0, прошли:
+On native Windows with Rust 1.95.0, the following passed:
 
 - `cargo fmt --all --check`;
 - `cargo check --frozen --all-targets`;
 - `cargo clippy --frozen --all-targets -- -D warnings`;
 - `cargo test --frozen`;
 - `cargo test --frozen --release`;
-- `cargo run --frozen --quiet` — демонстрация всех четырёх ошибок и успешных переводов.
+- `cargo run --frozen --quiet` — demonstration of all four errors and successful translations.
 
-При запуске Cargo использовалось `CARGO_INCREMENTAL=0` из-за ошибки доступа к incremental-кэшу локального диска. Это настройка сборки, не изменение алгоритма.
+Cargo was run with `CARGO_INCREMENTAL=0` because of an access error affecting the local disk's incremental cache. This is a build setting, not an algorithm change.
 
-В каждом тестовом профиле прошли 6 тестов преподавателя, 8 дополнительных тестов и 1 doctest:
+In each test profile, 6 instructor tests, 8 additional tests, and 1 doctest passed:
 
-| Проверка | Покрытие |
+| Check | Coverage |
 |---|---|
-| Полный перебор допустимых входов | 64 VA × 256 значений выбранной PTE × 2 режима × 2 операции = 65 536 случаев |
-| Полный перебор недопустимых адресов | 192 VA × 256 PTE × 2 режима × 2 операции = 196 608 случаев |
-| Границы | Адреса 0 и 63, переходы между страницами, сохранение offset |
-| Права | Все флаги, конфликтующие ошибки, отсутствие обхода P/W в Ring0 |
-| Неиспользуемые биты | Все четыре комбинации старших битов PTE |
-| Отображения | Разные PPN, общая физическая страница с разными правами, независимые MMU |
+| Exhaustive enumeration of valid inputs | 64 VAs × 256 values of the selected PTE × 2 modes × 2 operations = 65 536 cases |
+| Exhaustive enumeration of invalid addresses | 192 VAs × 256 PTEs × 2 modes × 2 operations = 196 608 cases |
+| Boundaries | Addresses 0 and 63, page transitions, offset preservation |
+| Permissions | All flags, conflicting errors, no P/W bypass in Ring0 |
+| Unused bits | All four combinations of the high PTE bits |
+| Mappings | Different PPNs, a shared physical page with different permissions, independent MMUs |
 
-Контрольный расчёт в [`tests/exhaustive.rs`](tests/exhaustive.rs) использует деление, остаток и таблицу прав вместо масок и сдвигов реализации. Неодинаковые соседние записи таблицы помогают обнаружить ошибочный выбор индекса. Перебор исчерпывает значения выбранной PTE, но не все возможные таблицы из восьми байтов.
+The reference calculation in [`tests/exhaustive.rs`](tests/exhaustive.rs) uses division, remainder, and a permission table instead of the implementation's masks and shifts. Distinct adjacent table entries help detect incorrect index selection. Enumeration exhausts the values of the selected PTE, but not all possible eight-byte tables.
