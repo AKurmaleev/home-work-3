@@ -18,7 +18,7 @@ Full verification:
 ```sh
 cargo fmt --all --check
 cargo check --frozen --all-targets
-cargo clippy --frozen --all-targets -- -D warnings
+cargo clippy --frozen --all-targets -- -D warnings -D unused_must_use -D clippy::let_underscore_must_use -D clippy::unused_result_ok
 cargo test --frozen
 cargo test --frozen --release
 ```
